@@ -1,13 +1,15 @@
-"""Utility functions."""
+from datasets import load_dataset
 
-def count_parameters(model):
-    """Count trainable parameters."""
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def format_number(n):
-    """Format large numbers with K/M suffix."""
-    if n >= 1e6:
-        return f"{n/1e6:.1f}M"
-    elif n >= 1e3:
-        return f"{n/1e3:.1f}K"
-    return str(n)
+def load_datasets(config):
+    train = load_dataset("parquet", data_files=config.train_dataset_path, split="train")
+    
+    if config.eval_dataset_path:
+        eval = load_dataset("parquet", data_files=config.eval_dataset_path, split="train")
+    elif config.eval_split_ratio > 0:
+        split = train.train_test_split(test_size=config.eval_split_ratio, seed=42)
+        train, eval = split["train"], split["test"]
+    else:
+        eval = None
+    
+    return train, eval

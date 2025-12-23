@@ -1,0 +1,164 @@
+# ==========================
+# Python
+# ==========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ==========================
+# Virtual Environments
+# ==========================
+venv/
+env/
+.venv/
+.env/
+ENV/
+
+# ==========================
+# Jupyter Notebooks
+# ==========================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ==========================
+# IDE / Editor
+# ==========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.spyderproject
+.spyproject
+
+# ==========================
+# Data Files
+# ==========================
+*.csv
+*.json
+*.jsonl
+*.parquet
+*.pickle
+*.pkl
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.feather
+*.arrow
+*.tfrecord
+*.tfrecords
+data/
+datasets/
+
+# ==========================
+# Model Files
+# ==========================
+*.pt
+*.pth
+*.onnx
+*.pb
+*.ckpt
+*.ckpt.*
+*.safetensors
+*.bin
+*.model
+*.weights
+*.keras
+models/
+checkpoints/
+saved_models/
+runs/
+outputs/
+
+# ==========================
+# Logs & Experiment Tracking
+# ==========================
+*.log
+logs/
+mlruns/
+wandb/
+tensorboard/
+lightning_logs/
+
+# ==========================
+# OS Generated
+# ==========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ==========================
+# Testing & Coverage
+# ==========================
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# ==========================
+# Distribution / Packaging
+# ==========================
+.Python
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ==========================
+# Documentation
+# ==========================
+docs/_build/
+site/
+
+# ==========================
+# Secrets & Config
+# ==========================
+.env
+.env.*
+*.pem
+*.key
+secrets.yaml
+secrets.json
+config.local.yaml
+
+# ==========================
+# Misc
+# ==========================
+*.bak
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/

@@ -1,92 +1,78 @@
 import argparse
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import sys
+sys.path.append("..")
 from trl import SFTTrainer, SFTConfig
 from peft import LoraConfig
-
-from config import SFTConfig as MySFTConfig
-from enigmata import generate_puzzles, AVAILABLE_TASKS
-
-
-def format_for_sft(example):
-    answer = example["answer"]
-    return {"text": f"{example['prompt']}\n{answer}"}
+from config_loader import load_config
+from utils import load_datasets
+from experiments import ExperimentTracker
 
 
-def main(args):
-    config = MySFTConfig()
-    task_name = args.task or "sudoku2"
+def main(config_path: str):
+    config = load_config(config_path, "sft")
 
-    if args.max_steps:
-        config.max_steps = args.max_steps
-    if args.smoke_test:
-        config.max_steps = 10
+    if torch.cuda.is_available():
+        print("Using GPU")
+    if torch.backends.mps.is_available():
+        print("Using MPS")
 
-    print(f"Task: {task_name}")
-    print(f"Loading model: {config.model_name}")
+    print(f"Task: {config.reward_fn}")
+    print(f"Model: {config.model_name}")
 
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    model = AutoModelForCausalLM.from_pretrained(
-        config.model_name,
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto" if torch.cuda.is_available() else None,
+    tracker = ExperimentTracker(
+        name=config.experiment_name or "experiment",
+        algorithm="sft",
+        output_dir=config.output_dir,
     )
+    print(f"Run: {tracker.run_id}")
 
-    # Load dataset using Enigmata
-    print(f"Generating dataset for {task_name}...")
-    train_dataset = generate_puzzles(task_name, count=1000, difficulty="medium")
-    train_dataset = train_dataset.map(format_for_sft)
-
-    # LoRA config
-    lora_config = None
+    peft_config = None
     if config.use_lora:
-        lora_config = LoraConfig(
+        peft_config = LoraConfig(
             r=config.lora_r,
             lora_alpha=config.lora_alpha,
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+            lora_dropout=config.lora_dropout,
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
             task_type="CAUSAL_LM",
         )
 
-    # SFT Config
+    train_dataset, eval_dataset = load_datasets(config)
+
+    model_kwargs = {"attn_implementation": "flash_attention_2"} if torch.cuda.is_available() else {}
+
     sft_config = SFTConfig(
-        output_dir=f"{config.output_dir}/{task_name}",
+        output_dir=tracker.run_dir,
+        num_train_epochs=config.num_epochs,
         max_steps=config.max_steps,
         per_device_train_batch_size=config.batch_size,
         learning_rate=config.learning_rate,
-        logging_steps=10,
-        save_steps=100,
-        bf16=torch.cuda.is_available(),
+        logging_steps=config.logging_steps,
+        max_length=config.max_length,
+        save_steps=config.save_steps,
+        bf16=torch.cuda.is_available() or torch.backends.mps.is_available(),
         report_to="none",
+        use_liger_kernel=config.use_liger_kernel and torch.cuda.is_available(),
+        model_init_kwargs=model_kwargs,
     )
 
-    # Create trainer
-    print("Initializing SFTTrainer...")
     trainer = SFTTrainer(
-        model=model,
+        model=config.model_name,
         args=sft_config,
         train_dataset=train_dataset,
-        processing_class=tokenizer,
-        peft_config=lora_config,
+        eval_dataset=eval_dataset,
+        peft_config=peft_config,
+        callbacks=[tracker.get_callback()],
     )
 
-    print("Starting SFT training...")
     trainer.train()
-
-    output_path = f"{config.output_dir}/{task_name}"
-    print(f"Saving to {output_path}")
     trainer.save_model()
-    tokenizer.save_pretrained(output_path)
-
-    print("SFT training complete!")
+    trainer.processing_class.save_pretrained(tracker.run_dir)
+    print(f"Saved to {tracker.run_dir}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", type=str, default=None, help=f"Task name")
-    parser.add_argument("--max_steps", type=int, default=None)
-    parser.add_argument("--smoke_test", action="store_true")
+    parser.add_argument("config", type=str, help="Path to YAML config")
     args = parser.parse_args()
-    main(args)
+    main(args.config)

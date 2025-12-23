@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Callable, Optional
 from datasets import Dataset
 
 
-ENIGMATA_PATH = "/home/geo/rl/Enigmata"
+ENIGMATA_PATH = "/Users/geo/facultate/rl/rl/Enigmata"
 
 if ENIGMATA_PATH not in sys.path:
     sys.path.insert(0, ENIGMATA_PATH)
@@ -104,9 +104,10 @@ def make_reward_fn(task_name: str = None) -> Callable:
 
 
 def to_hf_dataset(df: pd.DataFrame):
+    df = df.rename(columns={"answer": "completion"})
     return Dataset.from_pandas(df)
 
-
+        
 if __name__ == "__main__":
     print(f"Loaded {len(AVAILABLE_TASKS)} tasks: {AVAILABLE_TASKS}")
     

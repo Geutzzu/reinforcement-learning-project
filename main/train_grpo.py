@@ -1,79 +1,54 @@
-"""
-GRPO Training Script for Enigmata Puzzles.
-Uses TRL's GRPOTrainer with Enigmata task reward functions.
-
-Usage:
-    python train_grpo.py --task sudoku2
-    python train_grpo.py --task maze --difficulty hard
-    python train_grpo.py --task sudoku2 --smoke_test
-"""
-
 import argparse
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import sys
+sys.path.append("..")
 from trl import GRPOTrainer, GRPOConfig
-from peft import LoraConfig, get_peft_model
-from config import TrainingConfig
-from enigmata import generate_puzzles, make_reward_fn, AVAILABLE_TASKS
+from peft import LoraConfig
+from config_loader import load_config
+from enigmata import make_reward_fn
+from utils import load_datasets
+from experiments import ExperimentTracker
 
 
-def main(args):
-    config = TrainingConfig()
+def main(config_path: str):
+    config = load_config(config_path, "grpo")
 
-    # Override with CLI args
-    task_name = args.task or config.puzzle_task
-    if args.max_steps:
-        config.max_steps = args.max_steps
-    if args.difficulty:
-        config.difficulty = args.difficulty
-    if args.smoke_test:
-        config.max_steps = 10
-        config.num_train_samples = 50
-        config.batch_size = 2
+    if torch.cuda.is_available():
+        print("Using GPU")
+    if torch.backends.mps.is_available():
+        print("Using MPS")
 
-    print(f"Task: {task_name}")
-    print(f"Available tasks: {len(AVAILABLE_TASKS)}")
-    print(f"Loading model: {config.model_name}")
+    print(f"Reward: {config.reward_fn}")
+    print(f"Model: {config.model_name}")
+    
+    if config.use_vllm:
+        print(f"vLLM: mode={config.vllm_mode}, gpu_mem={config.vllm_gpu_memory_utilization}")
 
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    # Load model
-    model = AutoModelForCausalLM.from_pretrained(
-        config.model_name,
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto" if torch.cuda.is_available() else None,
+    tracker = ExperimentTracker(
+        name=config.experiment_name or "experiment",
+        algorithm="grpo",
+        output_dir=config.output_dir,
     )
+    print(f"Run: {tracker.run_id}")
 
-    # Apply LoRA
+    peft_config = None
     if config.use_lora:
-        print("Applying LoRA...")
-        lora_config = LoraConfig(
+        peft_config = LoraConfig(
             r=config.lora_r,
             lora_alpha=config.lora_alpha,
             lora_dropout=config.lora_dropout,
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
             task_type="CAUSAL_LM",
         )
-        model = get_peft_model(model, lora_config)
-        model.print_trainable_parameters()
 
-    # Load dataset using Enigmata
-    print(f"Generating {config.num_train_samples} {task_name} puzzles...")
-    train_dataset = generate_puzzles(
-        task_name,
-        count=config.num_train_samples,
-        difficulty=getattr(config, "difficulty", "medium"),
-    )
+    train_dataset, eval_dataset = load_datasets(config)
+    reward_fn = make_reward_fn(config.reward_fn)
 
-    # Get reward function
-    reward_fn = make_reward_fn(task_name)
+    model_kwargs = {"attn_implementation": "flash_attention_2"} if torch.cuda.is_available() else {}
 
-    # GRPO Config
     grpo_config = GRPOConfig(
-        output_dir=f"{config.output_dir}/{task_name}",
+        output_dir=tracker.run_dir,
+        num_train_epochs=config.num_epochs,
         max_steps=config.max_steps,
         per_device_train_batch_size=config.batch_size,
         gradient_accumulation_steps=config.gradient_accumulation_steps,
@@ -83,45 +58,38 @@ def main(args):
         num_generations=config.num_generations,
         max_completion_length=config.max_new_tokens,
         temperature=config.temperature,
-        bf16=torch.cuda.is_available(),
+        bf16=torch.cuda.is_available() or torch.backends.mps.is_available(),
         report_to="none",
+        use_liger_kernel=config.use_liger_kernel and torch.cuda.is_available(),
+        model_init_kwargs=model_kwargs,
+        use_vllm=config.use_vllm,
+        vllm_mode=config.vllm_mode,
+        vllm_gpu_memory_utilization=config.vllm_gpu_memory_utilization,
+        vllm_tensor_parallel_size=config.vllm_tensor_parallel_size,
+        vllm_enable_sleep_mode=config.vllm_enable_sleep_mode,
+        vllm_server_host=config.vllm_server_host,
+        vllm_server_port=config.vllm_server_port,
+        vllm_server_timeout=config.vllm_server_timeout,
     )
 
-    # Create trainer
-    print("Initializing GRPOTrainer...")
     trainer = GRPOTrainer(
-        model=model,
+        model=config.model_name,
         args=grpo_config,
         train_dataset=train_dataset,
-        processing_class=tokenizer,
+        eval_dataset=eval_dataset,
         reward_funcs=reward_fn,
+        peft_config=peft_config,
+        callbacks=[tracker.get_callback()],
     )
 
-    # Train
-    print("Starting training...")
     trainer.train()
-
-    # Save
-    output_path = f"{config.output_dir}/{task_name}"
-    print(f"Saving model to {output_path}")
     trainer.save_model()
-    tokenizer.save_pretrained(output_path)
-
-    print("Done!")
+    trainer.processing_class.save_pretrained(tracker.run_dir)
+    print(f"Saved to {tracker.run_dir}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--task",
-        type=str,
-        default=None,
-        help=f"Task name. Available: {AVAILABLE_TASKS[:5]}...",
-    )
-    parser.add_argument(
-        "--difficulty", type=str, default=None, choices=["easy", "medium", "hard"]
-    )
-    parser.add_argument("--max_steps", type=int, default=None)
-    parser.add_argument("--smoke_test", action="store_true", help="Quick test run")
+    parser.add_argument("config", type=str, help="Path to YAML config")
     args = parser.parse_args()
-    main(args)
+    main(args.config)

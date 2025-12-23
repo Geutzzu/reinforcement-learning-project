@@ -1,22 +1,28 @@
 model_name: Qwen/Qwen2.5-0.5B-Instruct
+
 use_lora: true
 lora_r: 16
 lora_alpha: 32
 lora_dropout: 0.05
+
 num_epochs: 3
 max_steps: -1
 batch_size: 8
-gradient_accumulation_steps: 4
-learning_rate: 2.0e-05
+gradient_accumulation_steps: 2
+learning_rate: 0.00002
 max_length: 512
 use_liger_kernel: false
+
 output_dir: /Users/geo/facultate/rl/rl/results
 logging_steps: 10
-save_steps: 100
-train_dataset_path: null
+save_steps: 200
+
+train_dataset_path: /Users/geo/facultate/rl/rl/data/maze_train.parquet
 eval_dataset_path: null
-eval_split_ratio: 0.0
-experiment_name: null
+eval_split_ratio: 0.1
+
+experiment_name: maze_sft
 reward_fn: maze
-snapshot_prompts_count: 0
+
+snapshot_prompts_count: 3
 snapshot_every_n_steps: null

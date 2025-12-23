@@ -24,10 +24,12 @@ def main(config_path: str):
     if config.use_vllm:
         print(f"vLLM: mode={config.vllm_mode}, gpu_mem={config.vllm_gpu_memory_utilization}")
 
+    from dataclasses import asdict
     tracker = ExperimentTracker(
         name=config.experiment_name or "experiment",
         algorithm="grpo",
         output_dir=config.output_dir,
+        config=asdict(config),
     )
     print(f"Run: {tracker.run_id}")
 
@@ -43,6 +45,12 @@ def main(config_path: str):
 
     train_dataset, eval_dataset = load_datasets(config)
     reward_fn = make_reward_fn(config.reward_fn)
+
+    callbacks = [tracker.get_callback()]
+    if config.snapshot_prompts_count > 0:
+        from experiments import SnapshotCallback
+        sample_prompts = [train_dataset[i]["prompt"] for i in range(min(config.snapshot_prompts_count, len(train_dataset)))]
+        callbacks.append(SnapshotCallback(sample_prompts, tracker.run_dir, snapshot_every_n_steps=config.snapshot_every_n_steps))
 
     model_kwargs = {"attn_implementation": "flash_attention_2"} if torch.cuda.is_available() else {}
 
@@ -79,7 +87,7 @@ def main(config_path: str):
         eval_dataset=eval_dataset,
         reward_funcs=reward_fn,
         peft_config=peft_config,
-        callbacks=[tracker.get_callback()],
+        callbacks=callbacks,
     )
 
     trainer.train()

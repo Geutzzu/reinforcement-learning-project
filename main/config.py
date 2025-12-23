@@ -25,8 +25,12 @@ class BaseConfig:
     eval_dataset_path: str = None
     eval_split_ratio: float = 0.0
     
-    experiment_name: str = None  # If None, uses "experiment"
+    experiment_name: str = None
     reward_fn: str = "maze"
+    
+    # Snapshot settings
+    snapshot_prompts_count: int = 0  # Number of prompts to sample for snapshots (0 = disabled)
+    snapshot_every_n_steps: int = None  # If set, snapshot every N steps; else per epoch
 
 
 @dataclass

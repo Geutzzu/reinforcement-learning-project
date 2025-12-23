@@ -2,28 +2,29 @@ import argparse
 import torch
 import sys
 sys.path.append("..")
-from trl import SFTTrainer, SFTConfig
+from trl import OnlineDPOTrainer, OnlineDPOConfig
 from peft import LoraConfig
 from config_loader import load_config
+from enigmata import make_reward_fn
 from utils import load_datasets
 from experiments import ExperimentTracker
+from dataclasses import asdict
 
 
 def main(config_path: str):
-    config = load_config(config_path, "sft")
+    config = load_config(config_path, "grpo")  # Reuse GRPO config structure
 
     if torch.cuda.is_available():
         print("Using GPU")
     if torch.backends.mps.is_available():
         print("Using MPS")
 
-    print(f"Task: {config.reward_fn}")
+    print(f"Reward: {config.reward_fn}")
     print(f"Model: {config.model_name}")
 
-    from dataclasses import asdict
     tracker = ExperimentTracker(
         name=config.experiment_name or "experiment",
-        algorithm="sft",
+        algorithm="online_dpo",
         output_dir=config.output_dir,
         config=asdict(config),
     )
@@ -40,6 +41,7 @@ def main(config_path: str):
         )
 
     train_dataset, eval_dataset = load_datasets(config)
+    reward_fn = make_reward_fn(config.reward_fn)
 
     callbacks = [tracker.get_callback()]
     if config.snapshot_prompts_count > 0:
@@ -49,26 +51,29 @@ def main(config_path: str):
 
     model_kwargs = {"attn_implementation": "flash_attention_2"} if torch.cuda.is_available() else {}
 
-    sft_config = SFTConfig(
+    online_dpo_config = OnlineDPOConfig(
         output_dir=tracker.run_dir,
         num_train_epochs=config.num_epochs,
         max_steps=config.max_steps,
         per_device_train_batch_size=config.batch_size,
+        gradient_accumulation_steps=config.gradient_accumulation_steps,
         learning_rate=config.learning_rate,
         logging_steps=config.logging_steps,
-        max_length=config.max_length,
         save_steps=config.save_steps,
+        max_new_tokens=config.max_new_tokens,
+        temperature=config.temperature,
+        beta=config.beta,
         bf16=torch.cuda.is_available() or torch.backends.mps.is_available(),
         report_to="none",
-        use_liger_kernel=config.use_liger_kernel and torch.cuda.is_available(),
         model_init_kwargs=model_kwargs,
     )
 
-    trainer = SFTTrainer(
+    trainer = OnlineDPOTrainer(
         model=config.model_name,
-        args=sft_config,
+        args=online_dpo_config,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        reward_funcs=reward_fn,
         peft_config=peft_config,
         callbacks=callbacks,
     )

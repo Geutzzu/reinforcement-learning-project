@@ -49,20 +49,24 @@ def main(config_path: str):
         sample_prompts = [train_dataset[i]["prompt"] for i in range(min(config.snapshot_prompts_count, len(train_dataset)))]
         callbacks.append(SnapshotCallback(sample_prompts, tracker.run_dir, snapshot_every_n_steps=config.snapshot_every_n_steps))
 
-    model_kwargs = {"attn_implementation": "flash_attention_2"} if torch.cuda.is_available() else {}
+    model_kwargs = {"attn_implementation": "flash_attention_2", "torch_dtype": torch.bfloat16} if torch.cuda.is_available() else {}
 
     online_dpo_config = OnlineDPOConfig(
         output_dir=tracker.run_dir,
         num_train_epochs=config.num_epochs,
         max_steps=config.max_steps,
         per_device_train_batch_size=config.batch_size,
+        per_device_eval_batch_size=config.batch_size,
         gradient_accumulation_steps=config.gradient_accumulation_steps,
         learning_rate=config.learning_rate,
+        lr_scheduler_type=config.lr_scheduler_type,
+        warmup_ratio=config.warmup_ratio,
         logging_steps=config.logging_steps,
         save_steps=config.save_steps,
         max_new_tokens=config.max_new_tokens,
         temperature=config.temperature,
         beta=config.beta,
+        eval_strategy="epoch" if eval_dataset is not None else "no",
         bf16=torch.cuda.is_available() or torch.backends.mps.is_available(),
         report_to="none",
         model_init_kwargs=model_kwargs,

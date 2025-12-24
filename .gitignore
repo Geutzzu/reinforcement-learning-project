@@ -159,6 +159,12 @@ config.local.yaml
 *.bak
 *.tmp
 *.temp
+*.checkpoint
+*.checkpoint.*
+checkpoint-*/
+**/checkpoint-*/
 .cache/
 tmp/
 temp/
+agents.md
+results/

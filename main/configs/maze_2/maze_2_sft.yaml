@@ -1,0 +1,36 @@
+# Model
+model_name: Qwen/Qwen2.5-0.5B-Instruct
+
+# LoRA
+use_lora: true
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+
+# Training
+num_epochs: 3
+max_steps: -1
+batch_size: 32
+gradient_accumulation_steps: 1
+learning_rate: 0.00002
+lr_scheduler_type: linear
+warmup_ratio: 0.0
+max_length: 512
+use_liger_kernel: true
+
+# Output
+output_dir: /workspace/rl/results
+logging_steps: 10
+save_steps: 200
+
+# Data
+train_dataset_path: /workspace/rl/data/maze_2.parquet
+eval_split_ratio: 0.1
+
+# Experiment
+experiment_name: maze_2_sft
+reward_fn: maze_2
+
+# Snapshots
+snapshot_prompts_count: 3
+snapshot_every_n_steps: null

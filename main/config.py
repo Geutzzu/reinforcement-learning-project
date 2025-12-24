@@ -14,6 +14,8 @@ class BaseConfig:
     batch_size: int = 8
     gradient_accumulation_steps: int = 4
     learning_rate: float = 1e-5
+    lr_scheduler_type: str = "cosine"  # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
+    warmup_ratio: float = 0.03  # 3% warmup recommended
     max_length: int = 512
     use_liger_kernel: bool = False
     
@@ -46,6 +48,9 @@ class GRPOConfig(BaseConfig):
     temperature: float = 0.7
     beta: float = 0.1
     
+    # Logging
+    log_completions: bool = False  # Log training generations (requires 'rich' package)
+    
     use_vllm: bool = False
     vllm_mode: str = "colocate"
     vllm_gpu_memory_utilization: float = 0.3
@@ -54,3 +59,4 @@ class GRPOConfig(BaseConfig):
     vllm_server_host: str = "0.0.0.0"
     vllm_server_port: int = 8000
     vllm_server_timeout: float = 240.0
+

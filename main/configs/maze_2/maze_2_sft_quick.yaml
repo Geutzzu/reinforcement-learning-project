@@ -1,0 +1,40 @@
+# python train_sft.py configs/maze_2/maze_2_sft_quick.yaml
+
+# Model
+model_name: Qwen/Qwen2.5-3B-Instruct
+
+# LoRA
+use_lora: true
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+
+# Training - 1 epoch, cosine decay
+num_epochs: 3
+max_steps: -1
+batch_size: 2
+gradient_accumulation_steps: 8
+learning_rate: 0.00002  # 2e-5 standard for SFT
+lr_scheduler_type: cosine
+warmup_ratio: 0.025
+max_length: 600
+use_liger_kernel: true
+
+# Output
+output_dir: /workspace/rl/results
+logging_steps: 20
+save_steps: 200
+
+# Data - Use the reasoning dataset
+train_dataset_path: /workspace/rl/data/maze_2_reasoning.parquet
+eval_split_ratio: 0.0
+eval_strategy: "steps"
+eval_steps: 100
+
+# Experiment
+experiment_name: maze_2_sft_quick
+reward_fn: maze_2
+
+# Snapshots
+snapshot_prompts_count: 0
+snapshot_every_n_steps: 100

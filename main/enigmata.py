@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Callable, Optional
 from datasets import Dataset
 
 
-ENIGMATA_PATH = "/workspace/rl/Enigmata"
+ENIGMATA_PATH = "/Users/geo/facultate/rl/rl/Enigmata"
 
 if ENIGMATA_PATH not in sys.path:
     sys.path.insert(0, ENIGMATA_PATH)

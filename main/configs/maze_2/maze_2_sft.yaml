@@ -1,3 +1,4 @@
+# python train_sft.py configs/maze_2/maze_2_sft.yaml
 # Model
 model_name: Qwen/Qwen2.5-0.5B-Instruct
 
@@ -13,9 +14,9 @@ max_steps: -1
 batch_size: 32
 gradient_accumulation_steps: 1
 learning_rate: 0.00002
-lr_scheduler_type: linear
-warmup_ratio: 0.0
-max_length: 512
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+max_length: 400
 use_liger_kernel: true
 
 # Output
@@ -25,7 +26,9 @@ save_steps: 200
 
 # Data
 train_dataset_path: /workspace/rl/data/maze_2.parquet
-eval_split_ratio: 0.1
+eval_split_ratio: 0.05
+eval_strategy: "no"  # Disabled: TRL has a bug with token_accuracy during eval
+eval_steps: null      # Only used if eval_strategy: steps
 
 # Experiment
 experiment_name: maze_2_sft

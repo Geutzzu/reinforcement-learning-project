@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Callable, Optional
 from datasets import Dataset
 
 
-ENIGMATA_PATH = "/Users/geo/facultate/rl/rl/Enigmata"
+ENIGMATA_PATH = "/workspace/rl/Enigmata"
 
 if ENIGMATA_PATH not in sys.path:
     sys.path.insert(0, ENIGMATA_PATH)
@@ -78,19 +78,19 @@ def verify(task_name: str, pred: str, answer: Any, meta: Any) -> int:
     return TASKS[task_name]["verify"](pred, answer, meta)
 
 
-def make_reward_fn(task_name: str = None) -> Callable:
+def make_reward_fn(default_task: str = None) -> Callable:
 
-    def reward_fn(completions: List[str], answer: List[Any] = None, meta: List[Any] = None, task_name_list: List[str] = None, **kwargs) -> List[float]:
+    def reward_fn(prompts, completions, **kwargs) -> List[float]:
         rewards = []
         n = len(completions)
         
-        answer = answer or [None] * n
-        meta = meta or [None] * n
-        task_name_list = task_name_list or [task_name] * n
+        answer = kwargs["answer"]
+        meta = kwargs["meta"]
+        task_name_list = kwargs.get("task_name") or [default_task] * n
         
         for comp, ans, m, t in zip(completions, answer, meta, task_name_list):
             try:
-                t = t or task_name
+                t = t or default_task
                 if t and t in TASKS:
                     rewards.append(float(TASKS[t]["verify"](comp, ans, m)))
                 else:
@@ -101,6 +101,12 @@ def make_reward_fn(task_name: str = None) -> Callable:
         return rewards
     
     return reward_fn
+
+
+def get_verifier(task_name: str) -> Callable:
+    if task_name not in TASKS:
+        raise ValueError(f"Unknown task: {task_name}. Available: {AVAILABLE_TASKS}")
+    return TASKS[task_name]["verify"]
 
 
 def to_hf_dataset(df: pd.DataFrame):
@@ -118,3 +124,4 @@ if __name__ == "__main__":
     df_mixed = generate_mixed({"sudoku2": 2, "maze": 2}, difficulty="easy")
     print(f"\nMixed dataset shape: {df_mixed.shape}")
     print(df_mixed[["task_name"]].value_counts())
+

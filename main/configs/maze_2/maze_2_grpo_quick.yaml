@@ -1,0 +1,54 @@
+# QUICK TEST CONFIG - For fast reward function iteration
+# python train_grpo.py configs/maze_2/maze_2_grpo_quick.yaml
+
+# Model
+model_name: Qwen/Qwen3-0.6B
+
+# LoRA
+use_lora: true
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+
+# Training - QUICK SETTINGS
+num_epochs: 1
+max_steps: 100  # Stop after 100 steps
+batch_size: 1  # Smaller batch
+gradient_accumulation_steps: 4  # Faster updates
+learning_rate: 0.00001
+lr_scheduler_type: constant  # No decay for quick test
+warmup_ratio: 0.0  # No warmup
+use_liger_kernel: true
+optim: adamw_8bit
+gradient_checkpointing: false
+
+# Output
+output_dir: /workspace/rl/results
+logging_steps: 5  # Log every 5 steps for visibility
+save_steps: 50
+
+# Data
+train_dataset_path: /workspace/rl/data/maze_2.parquet
+eval_split_ratio: 0.0  # No eval for quick test
+eval_strategy: "no"
+eval_steps: null
+
+# Experiment
+experiment_name: maze_2_grpo_quick
+reward_fn: maze_2
+
+# Snapshots
+snapshot_prompts_count: 3
+snapshot_every_n_steps: 20  # Snapshot more often
+log_completions: true
+
+# GRPO-specific
+num_generations: 4  # Fewer generations = faster
+max_new_tokens: 512  # Shorter outputs
+temperature: 0.7
+beta: 0.0
+
+use_vllm: true
+vllm_mode: colocate
+vllm_gpu_memory_utilization: 0.6
+vllm_enable_sleep_mode: false

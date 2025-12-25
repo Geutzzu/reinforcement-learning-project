@@ -5,7 +5,7 @@ sys.path.append("..")
 from trl import OnlineDPOTrainer, OnlineDPOConfig
 from peft import LoraConfig
 from config_loader import load_config
-from enigmata import make_reward_fn
+from enigmata import make_reward_fn, get_verifier
 from utils import load_datasets
 from experiments import ExperimentTracker
 from dataclasses import asdict
@@ -42,6 +42,10 @@ def main(config_path: str):
 
     train_dataset, eval_dataset = load_datasets(config)
     reward_fn = make_reward_fn(config.reward_fn)
+    
+    # Save reward function source code for reproducibility
+    verifier = get_verifier(config.reward_fn)
+    tracker.save_reward_fn(verifier, name=config.reward_fn)
 
     callbacks = [tracker.get_callback()]
     if config.snapshot_prompts_count > 0:
@@ -66,9 +70,11 @@ def main(config_path: str):
         max_new_tokens=config.max_new_tokens,
         temperature=config.temperature,
         beta=config.beta,
-        eval_strategy="epoch" if eval_dataset is not None else "no",
+        eval_strategy=config.eval_strategy if eval_dataset is not None else "no",
+        eval_steps=config.eval_steps,
         bf16=torch.cuda.is_available() or torch.backends.mps.is_available(),
         report_to="none",
+        use_liger_kernel=config.use_liger_kernel and torch.cuda.is_available(),
         model_init_kwargs=model_kwargs,
     )
 
@@ -84,8 +90,8 @@ def main(config_path: str):
 
     trainer.train()
     trainer.save_model()
-    trainer.processing_class.save_pretrained(tracker.run_dir)
-    print(f"Saved to {tracker.run_dir}")
+    tokenizer.save_pretrained(tracker.run_dir)
+    print(f"Saved to {tracker.run_id}")
 
 
 if __name__ == "__main__":
@@ -93,3 +99,4 @@ if __name__ == "__main__":
     parser.add_argument("config", type=str, help="Path to YAML config")
     args = parser.parse_args()
     main(args.config)
+

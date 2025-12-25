@@ -1,10 +1,11 @@
 import os
 import json
 import torch
+import inspect
 import pandas as pd
 from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 from transformers import TrainerCallback
 
 
@@ -63,6 +64,28 @@ class ExperimentTracker:
     def save_eval_results(self, results: dict):
         with open(os.path.join(self.run_dir, "eval_results.json"), "w") as f:
             json.dump(results, f, indent=2)
+    
+    def save_reward_fn(self, reward_fn: Callable, name: str = None):
+        try:
+            source = inspect.getsource(reward_fn)
+            fn_name = name or reward_fn.__name__
+            
+            with open(os.path.join(self.run_dir, f"reward_fn_{fn_name}.py"), "w") as f:
+                f.write(f"# Reward function: {fn_name}\n")
+                f.write(f"# Module: {reward_fn.__module__}\n")
+                f.write(f"# Saved at: {datetime.now().isoformat()}\n\n")
+                f.write(source)
+            
+            config_path = os.path.join(self.run_dir, "config.json")
+            with open(config_path, "r") as f:
+                config_data = json.load(f)
+            config_data["reward_fn_name"] = fn_name
+            config_data["reward_fn_module"] = reward_fn.__module__
+            with open(config_path, "w") as f:
+                json.dump(config_data, f, indent=2)
+                
+        except (OSError, TypeError) as e:
+            print(f"[Tracker] Could not save reward function source: {e}")
     
     def get_callback(self):
         return TrackerCallback(self)

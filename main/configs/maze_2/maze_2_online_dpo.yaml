@@ -6,7 +6,7 @@ lora_alpha: 32
 lora_dropout: 0.05
 
 num_epochs: 1
-max_steps: 500
+max_steps: -1
 batch_size: 4
 gradient_accumulation_steps: 4
 learning_rate: 0.00001
@@ -20,6 +20,8 @@ save_steps: 100
 train_dataset_path: /workspace/rl/data/maze_2.parquet
 eval_dataset_path: null
 eval_split_ratio: 0.1
+eval_strategy: epoch  # Options: no, epoch, steps
+eval_steps: null      # Only used if eval_strategy: steps
 
 experiment_name: maze_2_online_dpo
 reward_fn: maze_2

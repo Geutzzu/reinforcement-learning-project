@@ -20,6 +20,8 @@ save_steps: 100
 train_dataset_path: /workspace/rl/data/maze_2.parquet
 eval_dataset_path: null
 eval_split_ratio: 0.1
+eval_strategy: epoch  # Options: no, epoch, steps
+eval_steps: null      # Only used if eval_strategy: steps
 
 experiment_name: maze_2_ppo
 reward_fn: maze_2

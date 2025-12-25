@@ -18,6 +18,8 @@ class BaseConfig:
     warmup_ratio: float = 0.03  # 3% warmup recommended
     max_length: int = 512
     use_liger_kernel: bool = False
+    optim: str = "adamw_torch_fused"  # Options: adamw_torch_fused, adamw_8bit
+    gradient_checkpointing: bool = True  # Trades compute for memory
     
     output_dir: str = "/Users/geo/facultate/rl/rl/results"
     logging_steps: int = 10
@@ -26,6 +28,10 @@ class BaseConfig:
     train_dataset_path: str = None
     eval_dataset_path: str = None
     eval_split_ratio: float = 0.0
+    
+    # Evaluation settings
+    eval_strategy: str = "epoch"  # Options: "no", "epoch", "steps"
+    eval_steps: int = None  # Only used if eval_strategy="steps"
     
     experiment_name: str = None
     reward_fn: str = "maze"

@@ -6,7 +6,7 @@ from trl.experimental.ppo import PPOTrainer, PPOConfig, AutoModelForCausalLMWith
 from peft import LoraConfig, get_peft_model
 from transformers import AutoTokenizer
 from config_loader import load_config
-from enigmata import make_reward_fn
+from enigmata import make_reward_fn, get_verifier
 from utils import load_datasets
 from experiments import ExperimentTracker
 from dataclasses import asdict
@@ -77,6 +77,10 @@ def main(config_path: str):
 
     reward_fn = make_reward_fn(config.reward_fn)
     reward_model = RewardWrapper(reward_fn, tokenizer)
+    
+    # Save reward function source code for reproducibility
+    verifier = get_verifier(config.reward_fn)
+    tracker.save_reward_fn(verifier, name=config.reward_fn)
 
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(
         config.model_name,
@@ -95,7 +99,8 @@ def main(config_path: str):
         warmup_ratio=config.warmup_ratio,
         logging_steps=config.logging_steps,
         save_steps=config.save_steps,
-        eval_strategy="epoch" if eval_dataset is not None else "no",
+        eval_strategy=config.eval_strategy if eval_dataset is not None else "no",
+        eval_steps=config.eval_steps,
         temperature=config.temperature,
         response_length=config.max_new_tokens,
         num_ppo_epochs=4,

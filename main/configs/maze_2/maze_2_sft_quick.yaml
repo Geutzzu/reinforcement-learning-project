@@ -10,11 +10,11 @@ lora_alpha: 32
 lora_dropout: 0.05
 
 # Training - 1 epoch, cosine decay
-num_epochs: 3
+num_epochs: 1
 max_steps: -1
-batch_size: 2
-gradient_accumulation_steps: 8
-learning_rate: 0.00002  # 2e-5 standard for SFT
+batch_size: 64
+gradient_accumulation_steps: 1
+learning_rate: 0.0002  # 2e-5 standard for SFT
 lr_scheduler_type: cosine
 warmup_ratio: 0.025
 max_length: 600
@@ -22,8 +22,8 @@ use_liger_kernel: true
 
 # Output
 output_dir: /workspace/rl/results
-logging_steps: 20
-save_steps: 200
+logging_steps: 1
+save_steps: 60
 
 # Data - Use the reasoning dataset
 train_dataset_path: /workspace/rl/data/maze_2_reasoning.parquet
@@ -37,4 +37,4 @@ reward_fn: maze_2
 
 # Snapshots
 snapshot_prompts_count: 0
-snapshot_every_n_steps: 100
+snapshot_every_n_steps: 5

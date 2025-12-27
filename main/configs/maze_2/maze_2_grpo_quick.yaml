@@ -1,7 +1,7 @@
 # python train_grpo.py configs/maze_2/maze_2_grpo_quick.yaml
 
 # Model - Use SFT checkpoint as base
-model_name: Qwen/Qwen2.5-3B-Instruct  # Or path to SFT checkpoint
+model_name: /workspace/rl/models/sft/3B-1e-baseline-sft/merged-1e  # Or path to SFT checkpoint
 
 # LoRA
 use_lora: true
@@ -14,7 +14,7 @@ num_epochs: 1
 max_steps: 500
 batch_size: 1
 gradient_accumulation_steps: 16
-learning_rate: 0.000005  
+learning_rate: 0.000005
 lr_scheduler_type: cosine
 warmup_ratio: 0.03
 use_liger_kernel: true
@@ -27,7 +27,7 @@ logging_steps: 10
 save_steps: 50  # Checkpoint every 50 steps
 
 # Data
-train_dataset_path: /workspace/rl/data/maze_2_reasoning.parquet
+train_dataset_path: /workspace/rl/data/maze_2_reasoning_new_sample.parquet
 eval_split_ratio: 0.0
 eval_strategy: "steps"
 eval_steps: 100
@@ -42,12 +42,13 @@ snapshot_every_n_steps: 50
 log_completions: true
 
 # GRPO-specific
-num_generations: 4
+num_generations: 8
 max_new_tokens: 512
 temperature: 1.0
 beta: 0.0
 
 use_vllm: true
 vllm_mode: colocate
-vllm_gpu_memory_utilization: 0.4
-vllm_enable_sleep_mode: false
+vllm_gpu_memory_utilization: 0.7
+vllm_enable_sleep_mode: true
+

@@ -47,8 +47,7 @@ def main(config_path: str):
         sample_prompts = [train_dataset[i]["prompt"] for i in range(min(config.snapshot_prompts_count, len(train_dataset)))]
         callbacks.append(SnapshotCallback(sample_prompts, tracker.run_dir, snapshot_every_n_steps=config.snapshot_every_n_steps))
 
-    # model_kwargs = {"attn_implementation": "flash_attention_2", "torch_dtype": torch.bfloat16} if torch.cuda.is_available() else {} # to be uncommented after flash-attn is installed
-    model_kwargs = {"torch_dtype": torch.bfloat16}
+    model_kwargs = {"attn_implementation": "flash_attention_2", "torch_dtype": torch.bfloat16} if torch.cuda.is_available() else {} # to be uncommented after flash-attn is installed
 
     sft_config = SFTConfig(
         output_dir=tracker.run_dir,
@@ -56,6 +55,7 @@ def main(config_path: str):
         max_steps=config.max_steps,
         per_device_train_batch_size=config.batch_size,
         per_device_eval_batch_size=config.batch_size,
+        gradient_accumulation_steps=config.gradient_accumulation_steps,
         learning_rate=config.learning_rate,
         lr_scheduler_type=config.lr_scheduler_type,
         warmup_ratio=config.warmup_ratio,

@@ -2,7 +2,7 @@ import torch
 import pandas as pd
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from main.enigmata import make_reward_fn
+from main.enigmata import make_reward_fns
 
 IS_MPS = torch.backends.mps.is_available()
 
@@ -61,8 +61,8 @@ def evaluate_on_dataset(model_path: str, test_path: str, task: str) -> dict:
     predictions = generate_predictions(model, tokenizer, df["prompt"].tolist(), backend=backend)
     df["prediction"] = predictions
     
-    reward_fn = make_reward_fn(task)
-    rewards = reward_fn(df["prompt"].tolist(), predictions)
+    reward_fns = make_reward_fns([task])
+    rewards = reward_fns[0](df["prompt"].tolist(), predictions, answer=df["answer"].tolist(), meta=df["meta"].tolist())
     df["reward"] = rewards
     
     accuracy = sum(r > 0 for r in rewards) / len(rewards)

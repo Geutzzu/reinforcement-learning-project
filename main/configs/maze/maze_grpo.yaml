@@ -28,7 +28,8 @@ eval_split_ratio: 0.1
 
 # Experiment
 experiment_name: maze_grpo
-reward_fn: maze
+reward_fns:
+  - "maze:verify"
 
 # Snapshots
 snapshot_prompts_count: 3

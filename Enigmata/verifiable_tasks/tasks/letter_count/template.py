@@ -5,16 +5,31 @@ Think step by step:
 2. Mark which ones match '{letter}'
 3. Count the total
 
-**Response format:**
-Put your final answer as a single number inside a code block:
-```
-<number>
-```
+**Response format (you MUST follow this exactly):**
 
-For example, if the answer is 5:
-```
-5
-```
+---start_reasoning---
+<your step-by-step reasoning here>
+---end_reasoning---
+
+---start_answer---
+<your final count as a single number>
+---end_answer---
+
+Example for counting 'a' in "banana":
+---start_reasoning---
+Let me go through each letter:
+b - not 'a'
+a - yes, count = 1
+n - not 'a'
+a - yes, count = 2
+n - not 'a'
+a - yes, count = 3
+Total: 3
+---end_reasoning---
+
+---start_answer---
+3
+---end_answer---
 
 Now count the '{letter}'s in "{word}":
 """

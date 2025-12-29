@@ -3,12 +3,14 @@ import json
 import re
 import ast
 
+
+
 def extract_last_code_block(text: str):
     code_blocks = re.findall(r'```.*?\n(.*?)```', text, re.DOTALL)
     if not code_blocks:
         code_blocks = re.findall(r'```(.*?)```', text, re.DOTALL)
     return code_blocks[-1].strip() if code_blocks else None
-
+    return text.strip()
 
 
 def verify(pred, answer, meta):

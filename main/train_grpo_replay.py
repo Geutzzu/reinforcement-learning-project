@@ -1,8 +1,13 @@
+
 import argparse
 import torch
 import sys
 sys.path.append("..")
-from trl import GRPOTrainer, GRPOConfig
+
+from trl.experimental.grpo_with_replay_buffer import (
+    GRPOWithReplayBufferTrainer, 
+    GRPOWithReplayBufferConfig
+)
 from peft import LoraConfig
 from config_loader import load_config
 from enigmata import make_reward_fns, get_verifier, get_task_from_reward_fns, get_reward_fn, parse_reward_fn_spec
@@ -23,6 +28,7 @@ def main(config_path: str):
     print(f"Task: {task_name}")
     print(f"Reward functions: {config.reward_fns}")
     print(f"Model: {config.model_name}")
+    print(f"[REPLAY BUFFER] Using GRPOWithReplayBufferTrainer")
     
     if config.use_vllm:
         print(f"vLLM: mode={config.vllm_mode}, gpu_mem={config.vllm_gpu_memory_utilization}")
@@ -30,7 +36,7 @@ def main(config_path: str):
     from dataclasses import asdict
     tracker = ExperimentTracker(
         name=config.experiment_name or "experiment",
-        algorithm="grpo",
+        algorithm="grpo_replay",  # Changed to indicate replay buffer
         output_dir=config.output_dir,
         config=asdict(config),
     )
@@ -67,14 +73,17 @@ def main(config_path: str):
         sample_prompts = [train_dataset[i]["prompt"] for i in range(min(config.snapshot_prompts_count, len(train_dataset)))]
         callbacks.append(SnapshotCallback(sample_prompts, tracker.run_dir, snapshot_every_n_steps=config.snapshot_every_n_steps))
 
-    model_kwargs = {"attn_implementation": "flash_attention_2", "torch_dtype": torch.bfloat16} if torch.cuda.is_available() else {} # to be uncommented after flash-attn is installed
+    model_kwargs = {"attn_implementation": "flash_attention_2", "torch_dtype": torch.bfloat16} if torch.cuda.is_available() else {}
 
-    grpo_config = GRPOConfig(
+    replay_buffer_size = getattr(config, 'replay_buffer_size', 64)
+    print(f"[REPLAY BUFFER] Size: {replay_buffer_size}")
+
+    grpo_config = GRPOWithReplayBufferConfig(
         output_dir=tracker.run_dir,
         num_train_epochs=config.num_epochs,
         max_steps=config.max_steps,
         per_device_train_batch_size=config.batch_size,
-        per_device_eval_batch_size=config.num_generations,  # Must be divisible by num_generations
+        per_device_eval_batch_size=config.num_generations,
         gradient_accumulation_steps=config.gradient_accumulation_steps,
         learning_rate=config.learning_rate,
         lr_scheduler_type=config.lr_scheduler_type,
@@ -101,14 +110,14 @@ def main(config_path: str):
         vllm_server_host=config.vllm_server_host,
         vllm_server_port=config.vllm_server_port,
         vllm_server_timeout=config.vllm_server_timeout,
-        vllm_max_model_length=config.vllm_max_model_length,
+
+        replay_buffer_size=replay_buffer_size,
     )
     
-    # Add reward_weights to config if provided
     if reward_weights:
         grpo_config.reward_weights = reward_weights
 
-    trainer = GRPOTrainer(
+    trainer = GRPOWithReplayBufferTrainer(
         model=config.model_name,
         args=grpo_config,
         train_dataset=train_dataset,
@@ -117,7 +126,6 @@ def main(config_path: str):
         peft_config=peft_config,
         callbacks=callbacks,
     )
-
 
     trainer.train()
     trainer.save_model()
@@ -130,8 +138,3 @@ if __name__ == "__main__":
     parser.add_argument("config", type=str, help="Path to YAML config")
     args = parser.parse_args()
     main(args.config)
-
-
-
-
-# /venv/main

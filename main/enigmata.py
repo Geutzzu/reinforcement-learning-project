@@ -2,16 +2,17 @@ import sys
 import os
 import importlib
 import pandas as pd
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any, Callable, Optional, Tuple
 from datasets import Dataset
 
 
-ENIGMATA_PATH = "/Users/geo/facultate/rl/rl/Enigmata"
+ENIGMATA_PATH = "/workspace/rl/Enigmata"
 
 if ENIGMATA_PATH not in sys.path:
     sys.path.insert(0, ENIGMATA_PATH)
 
 TASKS_DIR = os.path.join(ENIGMATA_PATH, "verifiable_tasks", "tasks")
+
 
 def _discover_tasks() -> Dict[str, Dict[str, Any]]:
     tasks = {}
@@ -25,18 +26,85 @@ def _discover_tasks() -> Dict[str, Dict[str, Any]]:
         try:
             gen_module = importlib.import_module(f"verifiable_tasks.tasks.{task_name}.generator")
             ver_module = importlib.import_module(f"verifiable_tasks.tasks.{task_name}.verifier")
+            
+            reward_fns = getattr(ver_module, "REWARD_FUNCTIONS", {"verify": ver_module.verify})
+            
             tasks[task_name] = {
                 "generate": gen_module.generate,
-                "verify": ver_module.verify,
+                "reward_functions": reward_fns,
             }
         except Exception:
             print(f"Failed to load task {task_name}")
-            pass
     
     return tasks
 
+
 TASKS = _discover_tasks()
 AVAILABLE_TASKS = list(TASKS.keys())
+
+
+def parse_reward_fn_spec(spec: str) -> Tuple[str, str]:
+    if ":" in spec:
+        task_name, fn_name = spec.split(":", 1)
+    else:
+        task_name, fn_name = spec, "verify"
+    return task_name, fn_name
+
+
+def get_reward_fn(task_name: str, fn_name: str = "verify") -> Callable:
+    if task_name not in TASKS:
+        raise ValueError(f"Unknown task: {task_name}. Available: {AVAILABLE_TASKS}")
+    
+    available = TASKS[task_name]["reward_functions"]
+    if fn_name not in available:
+        raise ValueError(f"Unknown reward function '{fn_name}' for task '{task_name}'. Available: {list(available.keys())}")
+    
+    return available[fn_name]
+
+
+def get_available_reward_fns(task_name: str) -> List[str]:
+    if task_name not in TASKS:
+        raise ValueError(f"Unknown task: {task_name}. Available: {AVAILABLE_TASKS}")
+    return list(TASKS[task_name]["reward_functions"].keys())
+
+
+def make_reward_fns(reward_fn_specs: List[str]) -> List[Callable]:
+    def _wrap_for_trl(vfn: Callable) -> Callable:
+        def wrapped(prompts, completions, **kwargs) -> List[float]:
+            rewards = []
+            for comp, ans, m in zip(completions, kwargs["answer"], kwargs["meta"]):
+                try:
+                    rewards.append(float(vfn(comp, ans, m)))
+                except Exception:
+                    rewards.append(0.0)
+            return rewards
+        return wrapped
+    
+    reward_funcs = []
+    for spec in reward_fn_specs:
+        task_name, fn_name = parse_reward_fn_spec(spec)
+        verify_fn = get_reward_fn(task_name, fn_name)
+        reward_funcs.append(_wrap_for_trl(verify_fn))
+    
+    return reward_funcs
+
+
+def get_task_from_reward_fns(reward_fn_specs: List[str]) -> str:
+    if not reward_fn_specs:
+        raise ValueError("reward_fns cannot be empty")
+    task_name, _ = parse_reward_fn_spec(reward_fn_specs[0])
+    return task_name
+
+
+
+def get_verifier(task_name: str) -> Callable:
+    return get_reward_fn(task_name, "verify")
+
+
+def verify(task_name: str, pred: str, answer: Any, meta: Any) -> float:
+    return get_reward_fn(task_name, "verify")(pred, answer, meta)
+
+
 
 
 def generate_puzzles(task_name: str, count: int = 100, difficulty: str = "medium") -> pd.DataFrame:
@@ -44,7 +112,6 @@ def generate_puzzles(task_name: str, count: int = 100, difficulty: str = "medium
         raise ValueError(f"Unknown task: {task_name}. Available: {AVAILABLE_TASKS}")
     
     generate_fn = TASKS[task_name]["generate"]
-
     puzzles = []
     
     for puzzle in generate_fn(count=count, difficulty=difficulty, language="en", split="train"):
@@ -56,64 +123,28 @@ def generate_puzzles(task_name: str, count: int = 100, difficulty: str = "medium
     return pd.DataFrame(puzzles)
 
 
-
 def generate_mixed(task_counts: Dict[str, int], difficulty: str = "medium", shuffle: bool = True) -> pd.DataFrame:
-    dfs = []
-    
-    for task_name, count in task_counts.items():
-        df = generate_puzzles(task_name, count=count, difficulty=difficulty)
-        dfs.append(df)
+    dfs = [generate_puzzles(task_name, count=count, difficulty=difficulty) 
+           for task_name, count in task_counts.items()]
     
     result = pd.concat(dfs, ignore_index=True)
-    
     if shuffle:
         result = result.sample(frac=1).reset_index(drop=True)
-    
     return result
 
 
-def verify(task_name: str, pred: str, answer: Any, meta: Any) -> int:
-    if task_name not in TASKS:
-        raise ValueError(f"Unknown task: {task_name}")
-    return TASKS[task_name]["verify"](pred, answer, meta)
-
-
-def make_reward_fn(default_task: str = None) -> Callable:
-
-    def reward_fn(prompts, completions, **kwargs) -> List[float]:
-        rewards = []
-        n = len(completions)
-        
-        answer = kwargs["answer"]
-        meta = kwargs["meta"]
-        task_name_list = kwargs.get("task_name") or [default_task] * n
-        
-        for comp, ans, m, t in zip(completions, answer, meta, task_name_list):
-            try:
-                t = t or default_task
-                if t and t in TASKS:
-                    rewards.append(float(TASKS[t]["verify"](comp, ans, m)))
-                else:
-                    rewards.append(0.0)
-            except Exception:
-                rewards.append(0.0)
-        
-        return rewards
-    
-    return reward_fn
-
-
-def get_verifier(task_name: str) -> Callable:
-    if task_name not in TASKS:
-        raise ValueError(f"Unknown task: {task_name}. Available: {AVAILABLE_TASKS}")
-    return TASKS[task_name]["verify"]
-
-
-def to_hf_dataset(df: pd.DataFrame):
+def to_hf_dataset(df: pd.DataFrame) -> Dataset:
     df = df.rename(columns={"answer": "completion"})
     return Dataset.from_pandas(df)
 
-        
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     print(f"Loaded {len(AVAILABLE_TASKS)} tasks: {AVAILABLE_TASKS}")
     
@@ -124,4 +155,3 @@ if __name__ == "__main__":
     df_mixed = generate_mixed({"sudoku2": 2, "maze": 2}, difficulty="easy")
     print(f"\nMixed dataset shape: {df_mixed.shape}")
     print(df_mixed[["task_name"]].value_counts())
-

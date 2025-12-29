@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 @dataclass
 class BaseConfig:
@@ -34,7 +35,10 @@ class BaseConfig:
     eval_steps: int = None  # Only used if eval_strategy="steps"
     
     experiment_name: str = None
-    reward_fn: str = "maze"
+    
+    # Reward functions: ["task:function", ...] e.g. ["maze_2:verify"] or ["maze_2:format", "maze_2:path_solved"]
+    reward_fns: List[str] = field(default_factory=lambda: ["maze:verify"])
+    reward_weights: List[float] = field(default_factory=list)  # Optional weights (must match reward_fns length)
     
     # Snapshot settings
     snapshot_prompts_count: int = 0  # Number of prompts to sample for snapshots (0 = disabled)
@@ -65,4 +69,8 @@ class GRPOConfig(BaseConfig):
     vllm_server_host: str = "0.0.0.0"
     vllm_server_port: int = 8000
     vllm_server_timeout: float = 240.0
+    vllm_max_model_length: int = None  # Max context length for vLLM (None = use model default)
+    
+    # Replay buffer (experimental)
+    replay_buffer_size: int = 64  # Size of replay buffer for storing high-reward rollouts
 

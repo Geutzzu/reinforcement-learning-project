@@ -24,7 +24,8 @@ eval_strategy: epoch  # Options: no, epoch, steps
 eval_steps: null      # Only used if eval_strategy: steps
 
 experiment_name: maze_2_ppo
-reward_fn: maze_2
+reward_fns:
+  - "maze_2:verify"
 
 snapshot_prompts_count: 3
 snapshot_every_n_steps: 100

@@ -32,7 +32,8 @@ eval_steps: null      # Only used if eval_strategy: steps
 
 # Experiment
 experiment_name: maze_2_sft
-reward_fn: maze_2
+reward_fns:
+  - "maze_2:verify"
 
 # Snapshots
 snapshot_prompts_count: 3

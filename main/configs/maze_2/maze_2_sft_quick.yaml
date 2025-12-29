@@ -33,7 +33,8 @@ eval_steps: 100
 
 # Experiment
 experiment_name: maze_2_sft_quick
-reward_fn: maze_2
+reward_fns:
+  - "maze_2:verify"
 
 # Snapshots
 snapshot_prompts_count: 0

@@ -7,13 +7,46 @@ COORD_PATTERN = re.compile(r'\((\d+),\s*(\d+)\)')
 PATH_SEARCH_PATTERN = re.compile(r'\((\d+),\s*(\d+)\)((?:->\((\d+),\s*(\d+)\))*)')
 COORD_EXISTS_PATTERN = re.compile(r'\(\d+,\s*\d+\)')
 
+# =============================================================================
+# MODULAR EXTRACTION HELPERS
+# =============================================================================
+
+def has_complete_format(text: str) -> bool:
+    markers = ["---start_reasoning---", "---end_reasoning---", "---start_answer---", "---end_answer---"]
+    return all(marker in text for marker in markers)
 
 
-def extract_answer_block(text: str):
-    return text.split("---start_answer---")[1].split("---end_answer---")[0].strip() if "---start_answer---" in text and "---end_answer---" in text else None
+def extract_answer_block(text: str) -> str | None:
+    if "---start_answer---" not in text or "---end_answer---" not in text:
+        return None
+    
+    try:
+        return text.split("---start_answer---")[1].split("---end_answer---")[0].strip()
+    except IndexError:
+        return None
 
-def extract_reasoning_block(text: str):
-    return text.split("---start_reasoning---")[1].split("---end_reasoning---")[0].strip() if "---start_reasoning---" in text and "---end_reasoning---" in text else None
+
+def extract_reasoning_block(text: str) -> str | None:
+    if "---start_reasoning---" not in text or "---end_reasoning---" not in text:
+        return None
+    
+    try:
+        return text.split("---start_reasoning---")[1].split("---end_reasoning---")[0].strip()
+    except IndexError:
+        return None
+
+
+def parse_meta(meta):
+    if isinstance(meta, str):
+        return json.loads(meta)
+    return meta
+
+
+def parse_path(answer_block: str) -> list[tuple[int, int]] | None:
+    coords = COORD_PATTERN.findall(answer_block)
+    if not coords:
+        return None
+    return [(int(x), int(y)) for x, y in coords]
 
 
 # =============================================================================
@@ -106,196 +139,101 @@ def verify_simple(pred, answer, meta):
 
 
 # =============================================================================
-# GRANULAR VARIANTS (Continuous rewards: [-1.0, 2.0])
+# FORMAT VERIFICATION (Simple binary check) + ANSWER VERIFICATION (Granular path validation)
 # =============================================================================
 
-def verify_format(pred, answer, meta):
-    """
-    Simple format validation - checks:
-    1. Exactly one instance of all 4 markers
-    2. Markers appear in correct order
-    
-    Returns:
-        1.0: Valid format (all markers present, correct order)
-        0.0: Invalid format
-    """
+def verify_format(pred, answer, meta) -> float:
     markers = ["---start_reasoning---", "---end_reasoning---", "---start_answer---", "---end_answer---"]
     
-    # Check exactly one of each marker
     for marker in markers:
         if pred.count(marker) != 1:
             return 0.0
     
-    # Check markers appear in correct order
     positions = [pred.find(m) for m in markers]
     if positions != sorted(positions):
         return 0.0
     
     return 1.0
 
-
-def verify_answer(pred, answer, meta):
-    """
-    Granular answer validation for maze solving.
-    
-    Score Range: [-0.5, ~1.7]
-    
-    POSITIVE Rewards:
-    - +0.15: Answer block contains ONLY valid path format (no extra tokens)
-    - +0.05: Path starts at (1,1)
-    - +0.25: Path length bonus (continuous, scales with valid steps)
-    - +0.15: Valid step ratio bonus
-    - +0.20: Progress toward goal bonus
-    - +0.10: All moves are valid (adjacent, in bounds, no obstacles)
-    - +1.50: Path reaches destination (5,5)
-    
-    NEGATIVE Penalties:
-    - -0.15: Extra content in answer block
-    - -0.40: Very short lazy paths
-    - -0.15: Out of bounds
-    - -0.12: Jump (non-adjacent move)
-    - -0.05: Hit obstacle
-    """
-    # Parse meta and answer
-    if isinstance(answer, str):
-        try:
-            answer = json.loads(answer)
-        except json.JSONDecodeError:
-            pass
-    
-    if isinstance(meta, str):
-        meta = json.loads(meta)
-    
+def verify_answer(pred, answer, meta) -> float:
+    meta = parse_meta(meta)
     maze = meta["question"]
     height = meta["height"]
     width = meta["width"]
     
-    # ========== EXTRACT ANSWER BLOCK ==========
-    try:
-        answer_block = pred.split("---start_answer---")[1].split("---end_answer---")[0].strip()
-    except IndexError:
-        # Can't extract answer block - return 0 (format function handles penalty)
+    answer_block = extract_answer_block(pred)
+    if answer_block is None:
         return 0.0
     
     score = 0.0
     
-    # ========== ANSWER BLOCK VALIDATION ==========
-    
-    # Check for "not exist" case
     if "not exist" in str(answer):
         if answer_block.lower().strip() == "not exist":
-            # BIG REWARD - same as completing a path!
-            score += 1.50  # Match completion reward
-            return score
+            return 1.50
         elif "not exist" in answer_block.lower():
-            score += 0.15  # Partial credit
             extra = answer_block.lower().replace("not exist", "").strip()
-            if extra:
-                score -= len(extra.split()) * 0.03
-            return score
+            return 0.20 - len(extra.split()) * 0.03
         else:
-            # Model said a path when it should say "not exist"
-            score -= 0.30  # Penalty
-            return score
-    
-    # Validate path format (strict: only path, no extra tokens)
+            return -0.30
+
     if PATH_PATTERN.match(answer_block):
-        score += 0.15  # REWARD: Clean path format
+        score += 0.15
     else:
-        # Check for letters in answer block (valid path has no letters)
         letter_count = sum(1 for c in answer_block if c.isalpha())
         if letter_count > 0:
-            score -= 0.10  # Base penalty for extra text
-            score -= min(letter_count * 0.02, 0.20)  # Cap per-letter penalty
+            score -= min(0.10 + letter_count * 0.02, 0.30)
         
-        # Check if there's any path-like structure at all
         if not COORD_EXISTS_PATTERN.search(answer_block):
-            score -= 0.25  # PENALTY: No path in answer
-            return score
+            return score - 0.25
     
-    # ========== PATH VALIDATION ==========
+    coordinate_list = parse_path(answer_block)
+    if not coordinate_list:
+        return score - 0.20
     
-    coords = COORD_PATTERN.findall(answer_block)
-    if not coords:
-        score -= 0.20
-        return score
-    
-    coordinate_list = [(int(x), int(y)) for x, y in coords]
     path_length = len(coordinate_list)
     
-    # ===== PENALIZE LAZY SHORT PATHS =====
-    # A valid 5x5 maze solution needs at least 9 steps (Manhattan distance)
-    # Paths with only 1-3 steps are "lazy" attempts
-    MIN_REASONABLE_PATH = 5  # At least try to make progress
-    
     if path_length <= 2:
-        # Super lazy: just (1,1) or (1,1)->(1,2)
-        score -= 0.40  # HEAVY penalty for minimal effort
+        score -= 0.40
     elif path_length <= 4:
-        # Still lazy
-        score -= 0.20  # Moderate penalty
-    elif path_length < MIN_REASONABLE_PATH:
-        score -= 0.10  # Mild penalty
+        score -= 0.20
+    elif path_length < 5:
+        score -= 0.10
     
-    # Check starts at (1,1)
-    if coordinate_list[0] == (1, 1):
-        score += 0.05  # Small reward for correct start (reduced from 0.10)
-    else:
-        score -= 0.15  # PENALTY: Wrong start
-        return score  # Can't validate further
+    if coordinate_list[0] != (1, 1):
+        return score - 0.15
     
-    # Validate path moves - count valid steps and categorize errors
+    score += 0.05
+    
     valid_steps = 0
     total_steps = len(coordinate_list) - 1
-    error_type = None  # 'bounds', 'obstacle', 'jump', or None
+    error_type = None
     
     for i in range(1, len(coordinate_list)):
         curr = coordinate_list[i]
         prev = coordinate_list[i - 1]
         
-        # Check bounds first (worst error - completely invalid coordinate)
         if not (1 <= curr[0] <= height and 1 <= curr[1] <= width):
             error_type = 'bounds'
             break
         
-        # Check valid move (adjacent) - jumping is a logical error
         move_distance = abs(curr[0] - prev[0]) + abs(curr[1] - prev[1])
         if move_distance != 1:
             error_type = 'jump'
             break
         
-        # Check not hitting obstacle - this is a "softer" error (model understands movement)
         if maze[curr[0]-1][curr[1]-1] == 'B':
             error_type = 'obstacle'
-            valid_steps += 1
             break
         
-        # Valid step!
         valid_steps += 1
     
-    # ===== REWARD PATH LENGTH (continuous) =====
-    # Linear scaling from 3 to 8+ valid steps (0 to 0.25)
-    score += min(max(valid_steps - 2, 0) * 0.04, 0.25)
-    
-    # ===== VALID STEP RATIO =====
-    # Partial credit for mostly-valid paths
-    if total_steps > 0:
-        valid_ratio = valid_steps / total_steps
-        score += valid_ratio * 0.15  # Up to 0.15 for all-valid path
-    
-    # ===== PROGRESS TOWARD GOAL =====
-    # Reward getting closer to destination even if path breaks
     if valid_steps > 0:
-        last_valid_idx = min(valid_steps, len(coordinate_list) - 1)
-        last_valid_pos = coordinate_list[last_valid_idx]
-        
-        start_dist = (height - 1) + (width - 1)  # 8 for 5x5 maze
+        last_valid_pos = coordinate_list[min(valid_steps, len(coordinate_list) - 1)]
+        start_dist = (height - 1) + (width - 1)
         current_dist = abs(last_valid_pos[0] - height) + abs(last_valid_pos[1] - width)
-        progress = 1 - (current_dist / start_dist)  # 0→1 as we approach goal
-        
-        score += progress * 0.20  # Up to 0.20 bonus for reaching near goal
+        progress = 1 - (current_dist / start_dist)
+        score += (progress ** 2) * 0.80
     
-    # ===== PENALIZE BY ERROR TYPE =====
     if error_type == 'bounds':
         score -= 0.15
     elif error_type == 'jump':
@@ -303,55 +241,24 @@ def verify_answer(pred, answer, meta):
     elif error_type == 'obstacle':
         score -= 0.05
     
-    # ===== BIG REWARD FOR COMPLETION =====
     if error_type is None:
-        score += 0.10  # Valid traversal
-        
+        score += 0.10
         if coordinate_list[-1] == (height, width):
-            # SUCCESS! Very big reward - this is the goal!
-            score += 1.50  # Increased from 0.50 - make success VERY rewarding
+            score += 1.50
         else:
-            score -= 0.10  # Wrong endpoint
+            score -= 0.10
     
     return score
 
 
-def verify_both_path_and_format(pred, answer, meta):
-    """
-    Granular reward function for maze solving with strict format requirements.
-    Combines format and answer validation.
-    
-    Score Range: [-1.0, 2.0]
-    
-    Base score: 0.0 (neutral)
-    
-    POSITIVE Rewards (for correct behavior):
-    - +0.15: Starts with ---start_reasoning---
-    - +0.10: Has all 4 markers in correct order
-    - +0.10: Ends with ---end_answer--- (final non-whitespace)
-    - +0.15: Answer block contains ONLY valid path format (no extra tokens)
-    - +0.05: Path starts at (1,1)
-    - +0.25: Path length bonus (continuous, scales with valid steps)
-    - +0.15: Valid step ratio bonus
-    - +0.20: Progress toward goal bonus
-    - +0.10: All moves are valid (adjacent, in bounds, no obstacles)
-    - +1.50: Path reaches destination (5,5)
-    
-    NEGATIVE Penalties (for violations):
-    - -0.05 per token outside of valid tag regions
-    - -0.15: Missing any required marker
-    - -0.15: Extra content in answer block
-    - -0.20: Completely wrong format (no markers at all)
-    """
+def verify(pred, answer, meta) -> float:
     format_score = verify_format(pred, answer, meta)
     answer_score = verify_answer(pred, answer, meta)
     
-    # Clamp to [-1, 2] - allow high positive for success
-    return min(2.0, max(-1.0, format_score + answer_score))
-
-
-def verify(pred, answer, meta):
-    return verify_answer(pred, answer, meta) + verify_format(pred, answer, meta)
+    if format_score == 0.0:
+        return -1.0 + answer_score * 0.3
+    
+    return format_score + answer_score
 
 
 # =============================================================================

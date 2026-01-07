@@ -16,7 +16,7 @@ for idx, row in df.iterrows():
     grpo_r = verify(row['grpo_pred'], row['answer'], row['meta'])
     sft_rewards.append(sft_r)
     grpo_rewards.append(grpo_r)
-    if idx % 1000 == 0:
+    if int(idx) % 1000 == 0:
         print(f'Processed {idx}/{len(df)}...')
 
 df['sft_reward'] = sft_rewards

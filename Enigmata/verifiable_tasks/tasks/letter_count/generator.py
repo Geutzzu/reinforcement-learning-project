@@ -31,10 +31,53 @@ LETTERS = "abcdefghijklmnopqrstuvwxyz"
 
 
 def count_letter(word: str, letter: str) -> int:
+    """Count occurrences of letter in word."""
     return word.lower().count(letter.lower())
 
 
+def generate_step_reasoning(word: str, letter: str) -> str:
+    """Generate step-by-step reasoning for counting a letter."""
+    lines = []
+    count = 0
+    
+    for i, char in enumerate(word.lower()):
+        if char == letter.lower():
+            count += 1
+            lines.append(f"{char} - YES ({count})")
+        else:
+            lines.append(f"{char} - no")
+    
+    return '\n'.join(lines)
+
+
+def generate_exhaustive_reasoning(word: str, letter: str, correct_count: int) -> str:
+    """Generate complete reasoning for the answer."""
+    parts = []
+    parts.append(f"Counting '{letter}' in \"{word}\":")
+    parts.append("")
+    parts.append(generate_step_reasoning(word, letter))
+    parts.append("")
+    parts.append(f"Total count: {correct_count}")
+    
+    return '\n'.join(parts)
+
+
+def get_answer(word: str, letter: str, lang='en') -> str:
+    """Generate the complete answer with reasoning."""
+    correct_count = count_letter(word, letter)
+    reasoning = generate_exhaustive_reasoning(word, letter, correct_count)
+    
+    return f"""---start_reasoning---
+{reasoning}
+---end_reasoning---
+
+---start_answer---
+{correct_count}
+---end_answer---"""
+
+
 def generate(count=100, difficulty='medium', language='en', split="train"):
+    """Generate letter counting problems."""
     prompt_template = PROMPT_TEMPLATE
     
     if difficulty == 'easy':
@@ -57,7 +100,7 @@ def generate(count=100, difficulty='medium', language='en', split="train"):
             correct_count = count_letter(word, letter)
             attempts += 1
         
-        answer = str(correct_count)
+        answer = get_answer(word, letter, lang=language)
         
         yield {
             "prompt": prompt_template.format(word=word, letter=letter),
@@ -70,8 +113,7 @@ def generate(count=100, difficulty='medium', language='en', split="train"):
                 "word": word,
                 "letter": letter,
                 "count": correct_count,
-                "answer": answer,
-                "rationale": "",
+                "word_length": len(word),
                 "split": split,
                 "type": "counting",
                 "source_url": "auto-generated",

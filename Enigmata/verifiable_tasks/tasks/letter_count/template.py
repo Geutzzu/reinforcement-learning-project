@@ -1,35 +1,19 @@
 PROMPT_TEMPLATE = """Count how many times the letter '{letter}' appears in the word "{word}".
 
-Think step by step:
-1. Write out each letter of the word
-2. Mark which ones match '{letter}'
-3. Count the total
+**STRICT OUTPUT FORMAT - DO NOT DEVIATE:**
 
-**Response format (you MUST follow this exactly):**
+Your response MUST contain ONLY these two blocks with NO text before, between, or after them.
 
 ---start_reasoning---
-<your step-by-step reasoning here>
+<go through each letter one by one>
 ---end_reasoning---
-
 ---start_answer---
-<your final count as a single number>
+<single number>
 ---end_answer---
 
-Example for counting 'a' in "banana":
----start_reasoning---
-Let me go through each letter:
-b - not 'a'
-a - yes, count = 1
-n - not 'a'
-a - yes, count = 2
-n - not 'a'
-a - yes, count = 3
-Total: 3
----end_reasoning---
-
----start_answer---
-3
----end_answer---
-
-Now count the '{letter}'s in "{word}":
+CRITICAL:
+- Go through each letter and mark YES or no
+- Keep reasoning concise
+- NO tokens outside the two blocks
+- Answer block: ONLY the count as a single number
 """

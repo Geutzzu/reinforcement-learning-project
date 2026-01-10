@@ -1,0 +1,40 @@
+# python train_sft.py configs/letter_count/letter_count_sft.yaml
+# Model
+model_name: Qwen/Qwen2.5-0.5B-Instruct
+
+# LoRA
+use_lora: false
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+
+# Training
+num_epochs: 3
+max_steps: 35
+batch_size: 64
+gradient_accumulation_steps: 1
+learning_rate: 0.00004
+lr_scheduler_type: cosine
+warmup_ratio: 0.00
+max_length: 2000
+use_liger_kernel: true
+
+# Output
+output_dir: /workspace/rl/results
+logging_steps: 10
+save_steps: 333
+save_strategy: epoch
+
+# Data
+train_dataset_path: /workspace/rl/data/sft_letter_count.parquet
+eval_split_ratio: 0.00
+eval_steps: -1
+
+# Experiment
+experiment_name: letter_count_sft
+reward_fns:
+  - "letter_count:verify"
+
+# Snapshots
+snapshot_prompts_count: 3
+snapshot_every_n_steps: null

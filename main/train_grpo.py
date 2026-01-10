@@ -143,6 +143,30 @@ def main(config_path: str):
             peft_config=peft_config,
             callbacks=callbacks,
         )
+    if config.llds_enabled:
+        print(f"LLDS enabled (lambda={config.llds_lambda}, start_step={config.llds_start_step})")
+        trainer = LLDSGRPOTrainer(
+            model=config.model_name,
+            args=grpo_config,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            reward_funcs=reward_funcs,
+            peft_config=peft_config,
+            callbacks=callbacks,
+            llds_lambda=config.llds_lambda,
+            llds_enabled=True,
+            llds_start_step=config.llds_start_step,
+        )
+    else:
+        trainer = GRPOTrainer(
+            model=config.model_name,
+            args=grpo_config,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            reward_funcs=reward_funcs,
+            peft_config=peft_config,
+            callbacks=callbacks,
+        )
 
 
     trainer.train()
@@ -161,5 +185,8 @@ if __name__ == "__main__":
 
 
 # /venv/main
+
+
+
 
 

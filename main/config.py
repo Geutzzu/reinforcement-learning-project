@@ -25,6 +25,7 @@ class BaseConfig:
     output_dir: str = "/Users/geo/facultate/rl/rl/results"
     logging_steps: int = 10
     save_steps: int = 100
+    save_strategy: str = "steps"  # Options: "no", "epoch", "steps"
     
     train_dataset_path: str = None
     eval_dataset_path: str = None
@@ -56,7 +57,15 @@ class GRPOConfig(BaseConfig):
     num_generations: int = 4
     max_new_tokens: int = 512
     temperature: float = 0.7
-    beta: float = 0.1
+    beta: float = 0.0  # KL penalty coefficient (0.0 = no KL penalty, recommended by recent papers)
+    
+    # Loss type: "grpo", "dapo", "dr_grpo", "sapo", "bnpo", "cispo"
+    loss_type: str = "dapo"  # DAPO recommended for long-CoT, no length bias
+    scale_rewards: str = "batch"  # "group", "batch", or "none" - batch is more robust (PPO Lite)
+    
+    # SAPO-specific (only used when loss_type="sapo")
+    sapo_temperature_neg: float = 1.05  # Temperature for negative advantages
+    sapo_temperature_pos: float = 1.0   # Temperature for positive advantages
     
     # Logging
     log_completions: bool = False  # Log training generations (requires 'rich' package)
@@ -73,4 +82,45 @@ class GRPOConfig(BaseConfig):
     
     # Replay buffer (experimental)
     replay_buffer_size: int = 64  # Size of replay buffer for storing high-reward rollouts
+    
+    # LLDS (Lazy Likelihood Displacement Suppression) - prevents GRPO collapse
+    # From: "ON GRPO COLLAPSE IN SEARCH-R1: THE LAZY LIKELIHOOD-DISPLACEMENT DEATH SPIRAL"
+    llds_enabled: bool = False  # Enable LLDS regularization
+    llds_lambda: float = 0.1    # Regularization coefficient (paper default = 0.1)
+    llds_start_step: int = 0    # Step to start applying LLDS (0 = from beginning)
+
+
+@dataclass
+class RLOOConfig(BaseConfig):
+    """
+    RLOO (Reinforce Leave-One-Out) configuration.
+    
+    Key differences from GRPO:
+    - Uses leave-one-out baseline instead of group mean
+    - No loss_type variants (only standard REINFORCE)
+    - No scale_rewards (handled via normalize_advantages instead)
+    """
+    learning_rate: float = 1e-5
+    num_generations: int = 4
+    max_new_tokens: int = 512
+    temperature: float = 0.7
+    beta: float = 0.05  # KL penalty coefficient (default 0.05 for RLOO, unlike GRPO which uses 0.0)
+    
+    # RLOO-specific parameters
+    num_iterations: int = 1  # μ parameter - number of iterations per batch (1 = fully online)
+    epsilon: float = 0.2     # Clipping epsilon for importance sampling ratio
+    
+    # Logging
+    log_completions: bool = False  # Log training generations (requires 'rich' package)
+    
+    # vLLM configuration (same as GRPO)
+    use_vllm: bool = False
+    vllm_mode: str = "colocate"
+    vllm_gpu_memory_utilization: float = 0.3
+    vllm_tensor_parallel_size: int = 1
+    vllm_enable_sleep_mode: bool = False
+    vllm_server_host: str = "0.0.0.0"
+    vllm_server_port: int = 8000
+    vllm_server_timeout: float = 240.0
+    vllm_max_model_length: int = None  # Max context length for vLLM (None = use model default)
 

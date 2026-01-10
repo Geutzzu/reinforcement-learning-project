@@ -23,11 +23,8 @@ def generate_maze(width, height, percentage=0.35):
 
 
 def maze_to_str(maze):
-    """Convert maze to display string."""
-    cols = len(maze[0])
-    header = "    " + " ".join(str(i+1) for i in range(cols))
-    rows = [f"{i+1}   " + " ".join(row) for i, row in enumerate(maze)]
-    return header + "\n" + "\n".join(rows)
+    rows = [" ".join(row) for row in maze]
+    return "\n".join(rows)
 
 
 def compute_distances_from_goal(maze):

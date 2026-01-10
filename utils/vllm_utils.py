@@ -4,8 +4,8 @@ os.environ.setdefault("VLLM_WORKER_MULTIPROC_METHOD", "spawn")
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import List, Optional, Union
-from mlx_lm import load as mlx_lm_load
-from mlx_lm import generate as mlx_lm_generate
+# from mlx_lm import load as mlx_lm_load
+# from mlx_lm import generate as mlx_lm_generate
 
 if torch.cuda.is_available():
     from vllm import LLM as _VLLM, SamplingParams
@@ -19,7 +19,7 @@ class VLLM:
         self.tokenizer = self.llm.get_tokenizer()
     
 
-    def predict_batch(self, prompts: List[str], max_output_tokens: int = 512, temperature: float = 0.0, top_p: float = 0.95, top_k: int = 20, stop: Optional[List[str]] = None, **kwargs) -> List[str]:
+    def predict_batch(self, prompts: List[str], max_output_tokens: int = 5000, temperature: float = 0.0, top_p: float = 0.95, top_k: int = 20, stop: Optional[List[str]] = None, **kwargs) -> List[str]:
         sampling_params = SamplingParams(max_tokens=max_output_tokens, temperature=temperature, top_p=top_p, top_k=top_k, stop=stop, **kwargs)
         
         outputs = self.llm.generate(prompts, sampling_params)

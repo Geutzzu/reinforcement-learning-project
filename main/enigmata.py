@@ -6,7 +6,13 @@ from typing import List, Dict, Any, Callable, Optional, Tuple
 from datasets import Dataset
 
 
-ENIGMATA_PATH = "/Users/geo/facultate/rl/rl/Enigmata"
+
+## if we are on mac, we want a different path, if linux, we want this
+if sys.platform == "darwin":
+    ENIGMATA_PATH = "/Users/geo/facultate/rl/rl/Enigmata"
+else:
+    ENIGMATA_PATH = "/workspace/rl/Enigmata"
+
 
 if ENIGMATA_PATH not in sys.path:
     sys.path.insert(0, ENIGMATA_PATH)

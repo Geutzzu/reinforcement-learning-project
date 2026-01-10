@@ -8,6 +8,7 @@ from config_loader import load_config
 from enigmata import make_reward_fns, get_verifier, get_task_from_reward_fns, get_reward_fn, parse_reward_fn_spec
 from utils import load_datasets
 from experiments import ExperimentTracker
+from llds_grpo import add_llds_monitoring, LLDSGRPOTrainer
 
 
 def main(config_path: str):
@@ -66,6 +67,8 @@ def main(config_path: str):
         from experiments import SnapshotCallback
         sample_prompts = [train_dataset[i]["prompt"] for i in range(min(config.snapshot_prompts_count, len(train_dataset)))]
         callbacks.append(SnapshotCallback(sample_prompts, tracker.run_dir, snapshot_every_n_steps=config.snapshot_every_n_steps))
+    
+    callbacks = add_llds_monitoring(callbacks, auto_stop=False)
 
     model_kwargs = {"attn_implementation": "flash_attention_2", "torch_dtype": torch.bfloat16} if torch.cuda.is_available() else {} # to be uncommented after flash-attn is installed
 
@@ -102,21 +105,44 @@ def main(config_path: str):
         vllm_server_port=config.vllm_server_port,
         vllm_server_timeout=config.vllm_server_timeout,
         vllm_max_model_length=config.vllm_max_model_length,
+        # Loss configuration
+        beta=config.beta,
+        loss_type=config.loss_type,
+        scale_rewards=config.scale_rewards,
+        sapo_temperature_neg=config.sapo_temperature_neg,
+        sapo_temperature_pos=config.sapo_temperature_pos,
+        # DAPO recommendation: exclude truncated completions from loss
+        mask_truncated_completions=True,
     )
     
     # Add reward_weights to config if provided
     if reward_weights:
         grpo_config.reward_weights = reward_weights
 
-    trainer = GRPOTrainer(
-        model=config.model_name,
-        args=grpo_config,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        reward_funcs=reward_funcs,
-        peft_config=peft_config,
-        callbacks=callbacks,
-    )
+    if config.llds_enabled:
+        print(f"LLDS enabled (lambda={config.llds_lambda}, start_step={config.llds_start_step})")
+        trainer = LLDSGRPOTrainer(
+            model=config.model_name,
+            args=grpo_config,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            reward_funcs=reward_funcs,
+            peft_config=peft_config,
+            callbacks=callbacks,
+            llds_lambda=config.llds_lambda,
+            llds_enabled=True,
+            llds_start_step=config.llds_start_step,
+        )
+    else:
+        trainer = GRPOTrainer(
+            model=config.model_name,
+            args=grpo_config,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            reward_funcs=reward_funcs,
+            peft_config=peft_config,
+            callbacks=callbacks,
+        )
 
 
     trainer.train()
@@ -135,3 +161,5 @@ if __name__ == "__main__":
 
 
 # /venv/main
+
+

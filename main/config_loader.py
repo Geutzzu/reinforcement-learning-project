@@ -1,9 +1,9 @@
 import yaml
 from dataclasses import fields, asdict
 from pathlib import Path
-from config import BaseConfig, SFTConfig, GRPOConfig
+from config import BaseConfig, SFTConfig, GRPOConfig, RLOOConfig
 
-CONFIG_CLASSES = {"sft": SFTConfig, "grpo": GRPOConfig}
+CONFIG_CLASSES = {"sft": SFTConfig, "grpo": GRPOConfig, "rloo": RLOOConfig}
 
 
 def load_config(path: str, config_type: str = "sft") -> BaseConfig:

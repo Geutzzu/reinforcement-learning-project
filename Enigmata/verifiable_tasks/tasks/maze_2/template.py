@@ -61,7 +61,7 @@ Your response MUST contain ONLY these two blocks with NO text before, between, o
 
 If path EXISTS:
 ---start_reasoning---
-<brief reasoning - be concise>
+<brief reasoning>
 ---end_reasoning---
 ---start_answer---
 (1,1)->(r,c)->...->(5,5)

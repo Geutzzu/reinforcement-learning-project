@@ -140,24 +140,18 @@ def generate(count=100, difficulty='medium', language='en', split="train"):
         "hard": [4, 5]
     }
     
-    exist = set()
-    
     for i in tqdm(range(count)):
-        while True:
-            num_disks = random.choice(disk_counts[difficulty])
-            
-            # Standard start: all disks on peg A
-            initial_state = {
-                'A': list(range(num_disks, 0, -1)),  # [3, 2, 1] for 3 disks
-                'B': [],
-                'C': []
-            }
-            
-            state_key = (num_disks, tuple(initial_state['A']), tuple(initial_state['B']), tuple(initial_state['C']))
-            
-            if state_key not in exist:
-                exist.add(state_key)
-                break
+        # Pick random disk count for this difficulty
+        num_disks = random.choice(disk_counts[difficulty])
+        
+        # Standard start: all disks on peg A
+        initial_state = {
+            'A': list(range(num_disks, 0, -1)),  # [3, 2, 1] for 3 disks
+            'B': [],
+            'C': []
+        }
+        # Note: For standard Hanoi, puzzles are uniquely determined by disk count
+        # No deduplication needed (and impossible for count > num disk options)
         
         question_str = state_to_str(initial_state, num_disks)
         answer = get_answer(initial_state, num_disks, lang=language)

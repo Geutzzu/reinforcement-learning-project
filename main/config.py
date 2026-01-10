@@ -56,7 +56,15 @@ class GRPOConfig(BaseConfig):
     num_generations: int = 4
     max_new_tokens: int = 512
     temperature: float = 0.7
-    beta: float = 0.1
+    beta: float = 0.0  # KL penalty coefficient (0.0 = no KL penalty, recommended by recent papers)
+    
+    # Loss type: "grpo", "dapo", "dr_grpo", "sapo", "bnpo", "cispo"
+    loss_type: str = "dapo"  # DAPO recommended for long-CoT, no length bias
+    scale_rewards: str = "batch"  # "group", "batch", or "none" - batch is more robust (PPO Lite)
+    
+    # SAPO-specific (only used when loss_type="sapo")
+    sapo_temperature_neg: float = 1.05  # Temperature for negative advantages
+    sapo_temperature_pos: float = 1.0   # Temperature for positive advantages
     
     # Logging
     log_completions: bool = False  # Log training generations (requires 'rich' package)
@@ -73,4 +81,10 @@ class GRPOConfig(BaseConfig):
     
     # Replay buffer (experimental)
     replay_buffer_size: int = 64  # Size of replay buffer for storing high-reward rollouts
+    
+    # LLDS (Lazy Likelihood Displacement Suppression) - prevents GRPO collapse
+    # From: "ON GRPO COLLAPSE IN SEARCH-R1: THE LAZY LIKELIHOOD-DISPLACEMENT DEATH SPIRAL"
+    llds_enabled: bool = False  # Enable LLDS regularization
+    llds_lambda: float = 0.1    # Regularization coefficient (paper default = 0.1)
+    llds_start_step: int = 0    # Step to start applying LLDS (0 = from beginning)
 
